@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ticketService } from '../services/tickets';
+import { useAuth } from '../contexts/AuthContext';
+import { firebaseTicketService } from '../services/firebaseTickets';
 
 interface CreateTicketProps {
   onClose: () => void;
@@ -7,46 +8,75 @@ interface CreateTicketProps {
 }
 
 const CreateTicket: React.FC<CreateTicketProps> = ({ onClose, onSuccess }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     category: 'general',
     priority: 'medium',
-    tags: ''
+    attachments: [] as string[]
   });
-  const [metadata, setMetadata] = useState<any>({});
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadMetadata();
+    loadCategories();
   }, []);
 
-  const loadMetadata = async () => {
+  const loadCategories = async () => {
     try {
-      const data = await ticketService.getMetadata();
-      setMetadata(data);
+      const data = await firebaseTicketService.getCategories();
+      setCategories(data);
     } catch (error) {
-      console.error('Failed to load metadata:', error);
+      console.error('Failed to load categories:', error);
     }
+  };
+
+  const validateForm = () => {
+    if (!formData.title.trim()) {
+      setError('Title is required');
+      return false;
+    }
+    if (formData.title.length < 5) {
+      setError('Title must be at least 5 characters long');
+      return false;
+    }
+    if (!formData.description.trim()) {
+      setError('Description is required');
+      return false;
+    }
+    if (formData.description.length < 10) {
+      setError('Description must be at least 10 characters long');
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!user) return;
+    
     setError('');
+    if (!validateForm()) return;
+    
+    setLoading(true);
 
     try {
-      const ticketData = {
-        ...formData,
-        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
-      };
-      
-      await ticketService.createTicket(ticketData);
+      await firebaseTicketService.createTicket({
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        category: formData.category,
+        priority: formData.priority as 'low' | 'medium' | 'high' | 'urgent',
+        userId: user.uid,
+        userEmail: user.email,
+        status: 'open',
+        attachments: formData.attachments
+      });
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create ticket');
+      setError(err.message || 'Failed to create ticket');
     } finally {
       setLoading(false);
     }
@@ -105,9 +135,14 @@ const CreateTicket: React.FC<CreateTicketProps> = ({ onClose, onSuccess }) => {
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               >
-                {metadata.categories?.map((cat: string) => (
-                  <option key={cat} value={cat}>
-                    {cat.replace('_', ' ').toUpperCase()}
+                <option value="general">General</option>
+                <option value="technical">Technical</option>
+                <option value="billing">Billing</option>
+                <option value="feature_request">Feature Request</option>
+                <option value="bug_report">Bug Report</option>
+                {categories.map((cat: any) => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name}
                   </option>
                 ))}
               </select>
@@ -122,25 +157,26 @@ const CreateTicket: React.FC<CreateTicketProps> = ({ onClose, onSuccess }) => {
                 value={formData.priority}
                 onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
               >
-                {metadata.priorities?.map((priority: string) => (
-                  <option key={priority} value={priority}>
-                    {priority.toUpperCase()}
-                  </option>
-                ))}
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
               </select>
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tags (comma separated)
+              Attachments (optional)
             </label>
             <input
-              type="text"
+              type="file"
+              multiple
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="bug, urgent, login"
-              value={formData.tags}
-              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []).map(f => f.name);
+                setFormData({ ...formData, attachments: files });
+              }}
             />
           </div>
 

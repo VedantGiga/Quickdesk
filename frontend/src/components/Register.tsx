@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import ThemeToggle from './ui/ThemeToggle';
 
 const Register: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -51,8 +52,11 @@ const Register: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-2xl backdrop-blur-sm border border-white/20 animate-fade-in">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-indigo-900 dark:to-purple-900 relative">
+      <div className="absolute top-6 right-6">
+        <ThemeToggle />
+      </div>
+      <div className="max-w-md w-full space-y-8 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-slate-700/30 animate-fade-in">
         <div className="text-center">
           <div className="mx-auto h-16 w-16 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mb-4">
             <span className="text-2xl font-bold text-white">Q</span>

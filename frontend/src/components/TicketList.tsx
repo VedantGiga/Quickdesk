@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { ticketService, Ticket } from '../services/tickets';
+import { firebaseTicketService, Ticket } from '../services/firebaseTickets';
+import { Link } from 'react-router-dom';
 
 const TicketList: React.FC = () => {
   const { user } = useAuth();
@@ -11,8 +12,8 @@ const TicketList: React.FC = () => {
     category: '',
     priority: '',
     search: '',
-    page: 1,
-    limit: 10
+    sortBy: 'recent',
+    showOwn: user?.role === 'user'
   });
 
   useEffect(() => {
@@ -24,13 +25,21 @@ const TicketList: React.FC = () => {
       setLoading(true);
       let data;
       
-      if (user?.role === 'agent') {
-        data = await ticketService.getAgentTickets(filters);
+      if (filters.showOwn && user) {
+        data = await firebaseTicketService.getUserTickets(user.uid, filters);
       } else {
-        data = await ticketService.getUserTickets(filters);
+        data = await firebaseTicketService.getAllTickets(filters);
       }
       
-      setTickets(data.tickets);
+      // Apply search filter
+      if (filters.search) {
+        const searchRegex = new RegExp(filters.search, 'i');
+        data = data.filter((ticket: any) => 
+          searchRegex.test(ticket.title) || searchRegex.test(ticket.description)
+        );
+      }
+      
+      setTickets(data as Ticket[]);
     } catch (error) {
       console.error('Failed to load tickets:', error);
     } finally {
@@ -40,10 +49,19 @@ const TicketList: React.FC = () => {
 
   const handleStatusUpdate = async (ticketId: string, status: string) => {
     try {
-      await ticketService.updateTicketStatus(ticketId, status);
+      await firebaseTicketService.updateTicketStatus(ticketId, status, user?.uid, user?.email);
       loadTickets();
     } catch (error) {
       console.error('Failed to update status:', error);
+    }
+  };
+
+  const handleVote = async (ticketId: string, voteType: 'up' | 'down') => {
+    try {
+      await firebaseTicketService.voteTicket(ticketId, voteType);
+      loadTickets();
+    } catch (error) {
+      console.error('Failed to vote:', error);
     }
   };
 
@@ -55,18 +73,18 @@ const TicketList: React.FC = () => {
     <div className="space-y-4">
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <input
             type="text"
             placeholder="Search tickets..."
             className="px-3 py-2 border border-gray-300 rounded-md"
             value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
           />
           <select
             className="px-3 py-2 border border-gray-300 rounded-md"
             value={filters.status}
-            onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
+            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
           >
             <option value="">All Status</option>
             <option value="open">Open</option>
@@ -77,7 +95,7 @@ const TicketList: React.FC = () => {
           <select
             className="px-3 py-2 border border-gray-300 rounded-md"
             value={filters.category}
-            onChange={(e) => setFilters({ ...filters, category: e.target.value, page: 1 })}
+            onChange={(e) => setFilters({ ...filters, category: e.target.value })}
           >
             <option value="">All Categories</option>
             <option value="technical">Technical</option>
@@ -88,25 +106,33 @@ const TicketList: React.FC = () => {
           </select>
           <select
             className="px-3 py-2 border border-gray-300 rounded-md"
-            value={filters.priority}
-            onChange={(e) => setFilters({ ...filters, priority: e.target.value, page: 1 })}
+            value={filters.sortBy}
+            onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
           >
-            <option value="">All Priorities</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="urgent">Urgent</option>
+            <option value="recent">Recently Modified</option>
+            <option value="replies">Most Replied</option>
           </select>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={filters.showOwn}
+              onChange={(e) => setFilters({ ...filters, showOwn: e.target.checked })}
+              className="rounded"
+            />
+            <span className="text-sm">My Tickets Only</span>
+          </label>
         </div>
       </div>
 
       {/* Tickets */}
       <div className="space-y-4">
         {tickets.map((ticket) => (
-          <div key={ticket._id} className="bg-white p-6 rounded-lg shadow">
+          <div key={ticket.id} className="bg-white p-6 rounded-lg shadow card-hover">
             <div className="flex justify-between items-start">
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900">{ticket.title}</h3>
+                <Link to={`/ticket/${ticket.id}`} className="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+                  {ticket.title}
+                </Link>
                 <p className="text-gray-600 mt-1">{ticket.description.substring(0, 150)}...</p>
                 <div className="flex space-x-2 mt-3">
                   <span className={`px-2 py-1 text-xs rounded ${
@@ -128,12 +154,33 @@ const TicketList: React.FC = () => {
                   }`}>
                     {ticket.priority.toUpperCase()}
                   </span>
+                  <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">
+                    {ticket.replyCount} replies
+                  </span>
                 </div>
-                <div className="text-sm text-gray-500 mt-2">
-                  Created: {new Date(ticket.createdAt).toLocaleDateString()}
-                  {ticket.agentEmail && (
-                    <span className="ml-4">Agent: {ticket.agentEmail}</span>
-                  )}
+                <div className="flex justify-between items-center mt-3">
+                  <div className="text-sm text-gray-500">
+                    Created: {new Date(ticket.createdAt).toLocaleDateString()}
+                    {ticket.agentEmail && (
+                      <span className="ml-4">Agent: {ticket.agentEmail}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleVote(ticket.id!, 'up')}
+                      className="flex items-center space-x-1 px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
+                    >
+                      <span>👍</span>
+                      <span>{ticket.upvotes}</span>
+                    </button>
+                    <button
+                      onClick={() => handleVote(ticket.id!, 'down')}
+                      className="flex items-center space-x-1 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                    >
+                      <span>👎</span>
+                      <span>{ticket.downvotes}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
               
@@ -142,7 +189,7 @@ const TicketList: React.FC = () => {
                   <select
                     className="px-3 py-1 text-sm border border-gray-300 rounded"
                     value={ticket.status}
-                    onChange={(e) => handleStatusUpdate(ticket._id, e.target.value)}
+                    onChange={(e) => handleStatusUpdate(ticket.id!, e.target.value)}
                   >
                     <option value="open">Open</option>
                     <option value="in_progress">In Progress</option>
