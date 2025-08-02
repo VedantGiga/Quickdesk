@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ticketService, Ticket } from '../services/tickets';
 import CreateTicket from './CreateTicket';
+import LoadingSpinner from './ui/LoadingSpinner';
 
 const UserDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -30,7 +31,7 @@ const UserDashboard: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   return (
