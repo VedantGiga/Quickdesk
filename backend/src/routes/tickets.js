@@ -1,9 +1,10 @@
 const express = require('express');
-const Ticket = require('../models/Ticket');
-const TicketReply = require('../models/TicketReply');
-const TicketShare = require('../models/TicketShare');
-const User = require('../models/User');
+const { Ticket, User } = require('../data/store');
 const { authenticateUser, requireRole } = require('../middleware/auth');
+
+// In-memory storage for replies
+const ticketReplies = [];
+let replyIdCounter = 1;
 
 const router = express.Router();
 
@@ -19,7 +20,7 @@ router.post('/', authenticateUser, requireRole(['end_user']), async (req, res) =
       return res.status(400).json({ error: 'Description must be at least 10 characters' });
     }
 
-    const ticket = new Ticket({
+    const ticket = await Ticket.create({
       title: title.trim(),
       description: description.trim(),
       category,
@@ -29,8 +30,6 @@ router.post('/', authenticateUser, requireRole(['end_user']), async (req, res) =
       attachments,
       tags
     });
-
-    await ticket.save();
     res.json({ success: true, ticket });
   } catch (error) {
     res.status(500).json({ error: 'Failed to create ticket' });
@@ -50,19 +49,32 @@ router.get('/user', authenticateUser, requireRole(['end_user']), async (req, res
     const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
     const skip = (page - 1) * limit;
 
-    let tickets = await Ticket.find(query)
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit));
-
+    let tickets = await Ticket.find(query);
+    
     if (search) {
-      const searchRegex = new RegExp(search, 'i');
+      const searchLower = search.toLowerCase();
       tickets = tickets.filter(ticket => 
-        searchRegex.test(ticket.title) || searchRegex.test(ticket.description)
+        ticket.title.toLowerCase().includes(searchLower) || 
+        ticket.description.toLowerCase().includes(searchLower)
       );
     }
 
-    const total = await Ticket.countDocuments(query);
+    const total = tickets.length;
+    
+    // Sort tickets
+    tickets.sort((a, b) => {
+      const aVal = a[sortBy];
+      const bVal = b[sortBy];
+      if (sortOrder === 'desc') {
+        return new Date(bVal) - new Date(aVal);
+      }
+      return new Date(aVal) - new Date(bVal);
+    });
+    
+    // Paginate
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + parseInt(limit);
+    tickets = tickets.slice(startIndex, endIndex);
 
     res.json({
       tickets,
@@ -92,21 +104,33 @@ router.get('/agent', authenticateUser, requireRole(['agent']), async (req, res) 
     const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
     const skip = (page - 1) * limit;
 
-    let tickets = await Ticket.find(query)
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit));
-
+    let tickets = await Ticket.find(query);
+    
     if (search) {
-      const searchRegex = new RegExp(search, 'i');
+      const searchLower = search.toLowerCase();
       tickets = tickets.filter(ticket => 
-        searchRegex.test(ticket.title) || 
-        searchRegex.test(ticket.description) ||
-        searchRegex.test(ticket.userEmail)
+        ticket.title.toLowerCase().includes(searchLower) || 
+        ticket.description.toLowerCase().includes(searchLower) ||
+        ticket.userEmail.toLowerCase().includes(searchLower)
       );
     }
 
-    const total = await Ticket.countDocuments(query);
+    const total = tickets.length;
+    
+    // Sort tickets
+    tickets.sort((a, b) => {
+      const aVal = a[sortBy];
+      const bVal = b[sortBy];
+      if (sortOrder === 'desc') {
+        return new Date(bVal) - new Date(aVal);
+      }
+      return new Date(aVal) - new Date(bVal);
+    });
+    
+    // Paginate
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + parseInt(limit);
+    tickets = tickets.slice(startIndex, endIndex);
 
     res.json({
       tickets,
@@ -133,9 +157,12 @@ router.put('/:id/status', authenticateUser, requireRole(['agent']), async (req, 
         status,
         agentId: req.user.uid,
         agentEmail: req.user.email
-      },
-      { new: true }
+      }
     );
+    
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
     
     res.json({ success: true, ticket });
   } catch (error) {
@@ -151,20 +178,23 @@ router.post('/:id/replies', authenticateUser, requireRole(['agent', 'end_user'])
     
     if (req.user.role === 'end_user') {
       const ticket = await Ticket.findById(ticketId);
-      if (!ticket || ticket.userId.toString() !== req.user.uid) {
+      if (!ticket || ticket.userId !== req.user.uid) {
         return res.status(403).json({ error: 'Access denied' });
       }
     }
     
-    const reply = new TicketReply({
+    const reply = {
+      id: (replyIdCounter++).toString(),
       ticketId,
       userId: req.user.uid,
       userEmail: req.user.email,
       message,
-      isAgent: req.user.role === 'agent'
-    });
+      isAgent: req.user.role === 'agent',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
     
-    await reply.save();
+    ticketReplies.push(reply);
     await Ticket.findByIdAndUpdate(ticketId, { updatedAt: new Date() });
     
     res.json({ success: true, reply });
@@ -180,12 +210,14 @@ router.get('/:id/replies', authenticateUser, requireRole(['agent', 'end_user']),
     
     if (req.user.role === 'end_user') {
       const ticket = await Ticket.findById(ticketId);
-      if (!ticket || ticket.userId.toString() !== req.user.uid) {
+      if (!ticket || ticket.userId !== req.user.uid) {
         return res.status(403).json({ error: 'Access denied' });
       }
     }
     
-    const replies = await TicketReply.find({ ticketId }).sort({ createdAt: 1 });
+    const replies = ticketReplies
+      .filter(reply => reply.ticketId === ticketId)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     res.json({ replies });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch replies' });
@@ -201,7 +233,7 @@ router.get('/:id', authenticateUser, requireRole(['agent', 'end_user']), async (
       return res.status(404).json({ error: 'Ticket not found' });
     }
     
-    if (req.user.role === 'end_user' && ticket.userId.toString() !== req.user.uid) {
+    if (req.user.role === 'end_user' && ticket.userId !== req.user.uid) {
       return res.status(403).json({ error: 'Access denied' });
     }
     

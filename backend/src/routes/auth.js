@@ -1,6 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { User } = require('../data/store');
 
 const router = express.Router();
 
@@ -14,16 +14,15 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    const user = new User({ email, password, role });
-    await user.save();
+    const user = await User.create({ email, password, role });
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     
     res.json({
       success: true,
       token,
       user: {
-        id: user._id,
+        id: user.id,
         email: user.email,
         role: user.role
       }
@@ -39,17 +38,17 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     
     const user = await User.findOne({ email });
-    if (!user || !(await user.comparePassword(password))) {
+    if (!user || !(await User.comparePassword(user, password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     
     res.json({
       success: true,
       token,
       user: {
-        id: user._id,
+        id: user.id,
         email: user.email,
         role: user.role
       }
