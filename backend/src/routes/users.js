@@ -1,5 +1,5 @@
 const express = require('express');
-const User = require('../models/User');
+const { User } = require('../data/store');
 const { authenticateUser, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -8,25 +8,25 @@ const router = express.Router();
 router.get('/', authenticateUser, requireRole(['admin']), async (req, res) => {
   try {
     const { page = 1, limit = 10, role, search } = req.query;
-    const query = {};
+    let users = await User.find(role ? { role } : {});
     
-    if (role) query.role = role;
     if (search) {
-      query.$or = [
-        { email: { $regex: search, $options: 'i' } },
-        { displayName: { $regex: search, $options: 'i' } }
-      ];
+      const searchLower = search.toLowerCase();
+      users = users.filter(user => 
+        user.email.toLowerCase().includes(searchLower) ||
+        (user.displayName && user.displayName.toLowerCase().includes(searchLower))
+      );
     }
 
-    const users = await User.find(query)
-      .select('-password')
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .sort({ createdAt: -1 });
-
-    const total = await User.countDocuments(query);
+    const total = users.length;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedUsers = users.slice(startIndex, endIndex).map(user => {
+      const { password, ...userWithoutPassword } = user;
+      return userWithoutPassword;
+    });
     
-    res.json({ users, total, page: parseInt(page), pages: Math.ceil(total / limit) });
+    res.json({ users: paginatedUsers, total, page: parseInt(page), pages: Math.ceil(total / limit) });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch users' });
   }
@@ -38,11 +38,12 @@ router.put('/:id/role', authenticateUser, requireRole(['admin']), async (req, re
     const { role, permissions } = req.body;
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { role, permissions },
-      { new: true }
-    ).select('-password');
+      { role, permissions }
+    );
     
-    res.json({ success: true, user });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { password, ...userWithoutPassword } = user;
+    res.json({ success: true, user: userWithoutPassword });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update user role' });
   }
@@ -54,11 +55,12 @@ router.put('/:id/status', authenticateUser, requireRole(['admin']), async (req, 
     const { isActive } = req.body;
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { isActive },
-      { new: true }
-    ).select('-password');
+      { isActive }
+    );
     
-    res.json({ success: true, user });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { password, ...userWithoutPassword } = user;
+    res.json({ success: true, user: userWithoutPassword });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update user status' });
   }
@@ -67,7 +69,14 @@ router.put('/:id/status', authenticateUser, requireRole(['admin']), async (req, 
 // Delete user (admin only)
 router.delete('/:id', authenticateUser, requireRole(['admin']), async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.params.id);
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    // Remove user from store
+    const { store } = require('../data/store');
+    const userIndex = store.users.findIndex(u => u.id === req.params.id);
+    if (userIndex > -1) store.users.splice(userIndex, 1);
+    
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete user' });
