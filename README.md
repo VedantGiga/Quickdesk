@@ -4,6 +4,8 @@ QuickDesk is a comprehensive, full-featured customer support ticketing platform 
 
 ---
 
+> **Project submission for Odoo Hackathon 2025**
+
 ## Table of Contents
 
 - [Features](#features)
