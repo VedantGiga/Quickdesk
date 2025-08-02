@@ -5,6 +5,8 @@ const cors = require('cors');
 
 const authRoutes = require('./routes/auth');
 const ticketRoutes = require('./routes/tickets');
+const userRoutes = require('./routes/users');
+const categoryRoutes = require('./routes/categories');
 const { authenticateUser, requireRole } = require('./middleware/auth');
 const User = require('./models/User');
 const Ticket = require('./models/Ticket');
@@ -24,6 +26,8 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/quickdesk
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/categories', categoryRoutes);
 
 // Profile routes
 app.get('/api/profile', authenticateUser, async (req, res) => {
@@ -135,12 +139,19 @@ app.get('/api/agent/dashboard', authenticateUser, requireRole(['agent']), async 
 });
 
 // Metadata route
-app.get('/api/metadata', authenticateUser, (req, res) => {
-  res.json({
-    categories: ['technical', 'billing', 'general', 'feature_request', 'bug_report'],
-    priorities: ['low', 'medium', 'high', 'urgent'],
-    statuses: ['open', 'in_progress', 'resolved', 'closed']
-  });
+app.get('/api/metadata', authenticateUser, async (req, res) => {
+  try {
+    const Category = require('./models/Category');
+    const categories = await Category.find({ isActive: true }).select('name');
+    
+    res.json({
+      categories: categories.map(c => c.name),
+      priorities: ['low', 'medium', 'high', 'urgent'],
+      statuses: ['open', 'in_progress', 'resolved', 'closed']
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch metadata' });
+  }
 });
 
 app.get('/api/hello', (req, res) => {

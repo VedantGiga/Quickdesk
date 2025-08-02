@@ -18,8 +18,14 @@ const authenticateUser = async (req, res, next) => {
     req.user = {
       uid: user._id.toString(),
       email: user.email,
-      role: user.role
+      role: user.role,
+      permissions: user.permissions || [],
+      isActive: user.isActive
     };
+    
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Account is deactivated' });
+    }
     
     next();
   } catch (error) {
