@@ -899,7 +899,7 @@ const EndUserDashboard = () => {
             Show open only
           </label>
 
-         <select
+       <select
   className="border rounded px-3 py-2"
   onChange={e => setCategoryFilter(e.target.value)}
   value={categoryFilter}
@@ -910,7 +910,7 @@ const EndUserDashboard = () => {
   ))}
 </select>
 
-         <select
+ <select
   className="border rounded px-3 py-2"
   onChange={e => setStatusFilter(e.target.value)}
   value={statusFilter}
@@ -920,6 +920,7 @@ const EndUserDashboard = () => {
     <option key={stat}>{stat}</option>
   ))}
 </select>
+
 
           <input
             type="text"
