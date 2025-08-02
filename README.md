@@ -1,10 +1,10 @@
 # QuickDesk
 
-QuickDesk is a comprehensive, full-featured customer support ticketing platform built using the MERN stack (MongoDB, Express.js, React, Node.js). It enables organizations to efficiently manage customer support requests, optimize agent workflows, and deliver excellent support experiences through intuitive interfaces and robust backend services.
-
----
+QuickDesk is a comprehensive, full-featured customer support ticketing platform built using a modular Node.js (Express) backend and a modern React frontend. It enables organizations to efficiently manage customer support requests, optimize agent workflows, and deliver excellent support experiences through intuitive interfaces and robust backend services.
 
 > **Project submission for Odoo Hackathon 2025**
+
+---
 
 ## Table of Contents
 
@@ -15,7 +15,6 @@ QuickDesk is a comprehensive, full-featured customer support ticketing platform 
   - [Backend Setup](#backend-setup)
   - [Frontend Setup](#frontend-setup)
 - [API Endpoints](#api-endpoints)
-- [Database Models](#database-models)
 - [Development and Deployment](#development-and-deployment)
 - [Contributing](#contributing)
 - [License](#license)
@@ -26,25 +25,25 @@ QuickDesk is a comprehensive, full-featured customer support ticketing platform 
 ## Features
 
 - **Secure Authentication & Authorization**  
-  Robust JWT-based authentication, with role-based access controls for end-users and agents, ensuring data security and privacy.
+  JWT-based authentication with role-based access controls for end-users and agents.
 
 - **Advanced Ticket Management**  
-  Users can create, view, filter, and manage support tickets. Agents have access to ticket queues, advanced filtering, and the ability to update statuses and collaborate on tickets through sharing and threaded discussions.
+  Users can create, view, filter, and manage support tickets. Agents can update statuses and collaborate on tickets through sharing and threaded discussions.
 
 - **User Profiles & Customizable Settings**  
-  Each user and agent can manage their own profile, personal details, and notification preferences for a personalized experience.
+  Each user and agent can manage their own profile, personal details, and notification preferences.
 
 - **Agent Collaboration**  
-  Tickets can be shared among agents, allowing for teamwork on complex issues. Internal notes and threaded replies facilitate clear communication.
+  Tickets can be shared among agents, allowing teamwork on complex issues. Internal notes and threaded replies facilitate clear communication.
 
 - **Dashboards & Analytics**  
-  Real-time dashboards for users and agents, providing key insights into ticket statuses, category breakdowns, response times, and other support metrics.
+  Real-time dashboards for users and agents, providing key insights into ticket statuses, response times, and other support metrics.
 
-- **Rich RESTful API**  
-  Clean, versioned REST API built with Express.js, allowing for integration with additional systems or custom frontends.
+- **RESTful API**  
+  Clean REST API built with Express.js for easy integration with other systems or custom frontends.
 
-- **Responsive Modern UI**  
-  The frontend is built with React, delivering a fast, interactive, and mobile-friendly user experience.
+- **Responsive Multi-Page UI**  
+  The frontend is a multi-page React application, delivering a fast, interactive, and mobile-friendly user experience.
 
 - **Cloud & On-Premise Ready**  
   Backend supports both traditional server hosting and serverless cloud deployments (e.g., Firebase Cloud Functions).
@@ -59,22 +58,48 @@ QuickDesk is a comprehensive, full-featured customer support ticketing platform 
 QuickDesk is designed for scalability and maintainability with a clear separation of concerns:
 
 - **Backend**:  
-  Node.js & Express.js REST API, MongoDB for data persistence, JWT for authentication, with optional support for serverless deployments.
+  Node.js & Express REST API, JWT for authentication, optional serverless deployment.
 
 - **Frontend**:  
-  React SPA (Single Page Application), bootstrapped with Create React App, offering a modern and dynamic user interface.
+  Multi-page React application (not SPA), providing a modern and dynamic user interface.
+
+- **No MongoDB or Bootstrap**:  
+  The stack is kept minimal and flexible — data persistence and UI frameworks are left open for extension as per deployment needs.
 
 ---
 
 ## Project Structure
 
+The repository is organized as follows:
+
 ```
 Quickdesk/
-├── backend/       # Express.js REST API, authentication, MongoDB models, config
-│   ├── functions/ # Serverless (Firebase) functions support
-│   └── ... 
-├── frontend/      # React app (Create React App)
-│   └── ...
+│
+├── backend/
+│   ├── functions/      # Serverless (Firebase) functions support and cloud configuration
+│   ├── lib/            # Compiled output or shared library code
+│   ├── node_modules/   # Backend dependencies
+│   ├── src/            # Main backend source code (Express routes, controllers, middleware, etc.)
+│   ├── .firebaserc     # Firebase project configuration
+│   ├── .gitignore      # Git ignore rules for backend
+│   ├── firebase.json   # Firebase settings and deployment config
+│   ├── package-lock.json
+│   ├── package.json
+│   └── README.md
+│
+├── frontend/
+│   ├── node_modules/   # Frontend dependencies
+│   ├── public/         # Static assets and the HTML template
+│   ├── src/            # Main frontend source code (React pages, components, hooks, state, etc.)
+│   ├── .gitignore      # Git ignore rules for frontend
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── postcss.config.js
+│   ├── README.md
+│   ├── tailwind.config.js
+│   └── tsconfig.json
+│
+└── .git/               # Git repository data (not included in source control)
 ```
 
 ---
@@ -90,17 +115,9 @@ Quickdesk/
     ```
 
 2. **Configure Environment**
-   Create a `.env` file in the `backend` directory with:
-    ```
-    PORT=5000
-    MONGODB_URI=mongodb://localhost:27017/quickdesk
-    JWT_SECRET=your-super-secret-jwt-key
-    ```
+   Create a `.env` file in the `backend` directory for your environment variables (e.g., PORT, JWT_SECRET).
 
-3. **Start MongoDB**
-   - Make sure MongoDB is running locally or provide a MongoDB Atlas URI.
-
-4. **Run the backend server**
+3. **Run the backend server**
     ```bash
     npm start          # Production mode
     npm run dev        # Development mode (with nodemon)
@@ -154,31 +171,14 @@ Quickdesk/
 
 ---
 
-## Database Models
-
-- **User**:  
-  Stores authentication credentials, profile details, role (end-user or agent), and personal settings.
-
-- **Ticket**:  
-  Represents a support ticket, including title, description, category, priority, status, creator, assigned agent, and optional attachments.
-
-- **TicketReply**:  
-  Contains threaded replies for tickets, capturing the conversation history between users and agents.
-
-- **TicketShare**:  
-  Enables collaborative workflows by allowing tickets to be shared among multiple agents.
-
----
-
 ## Development and Deployment
 
 - **Backend**:
-  - Built with Node.js, Express, MongoDB, and JWT.
-  - API can be tested with Postman or similar tools.
+  - Built with Node.js, Express, and JWT.
   - Serverless support using Firebase Cloud Functions.
 
 - **Frontend**:
-  - Built with React (Create React App).
+  - Built as a multi-page application in React.
   - Easily customizable and extensible for additional features.
 
 - **Deployment**:
@@ -203,3 +203,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Team
 
 Developed and maintained by the **CodeFlux Team**.
+
+> **This project is an official entry for Odoo Hackathon 2025.**
